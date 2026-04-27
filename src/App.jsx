@@ -241,9 +241,9 @@ function AppShell() {
         {activeTab === "notifications"  && <NotificationsPage />}
 
         {/* AI Tools */}
-        {activeTab === "ai_tools" && currentSub === "sop"        && <SOPGenerator       scholarships={scholarships} initialSchol={sopSchol} />}
-        {activeTab === "ai_tools" && currentSub === "interview"  && <InterviewSimulator  scholarships={scholarships} initialSchol={intSchol} />}
-        {activeTab === "ai_tools" && currentSub === "analyser"   && <RejectionAnalyser   scholarships={scholarships} />}
+        {activeTab === "ai_tools" && currentSub === "sop"        && <SOPGenerator       scholarships={scholarships} user={userForAI} saved={saved} initialSchol={sopSchol} />}
+        {activeTab === "ai_tools" && currentSub === "interview"  && <InterviewSimulator  scholarships={scholarships} user={userForAI} initialSchol={intSchol} />}
+        {activeTab === "ai_tools" && currentSub === "analyser"   && <RejectionAnalyser   scholarships={scholarships} user={userForAI} />}
         {activeTab === "ai_tools" && currentSub === "ocr"        && <DocumentOCR onProfileUpdate={() => {}} />}
         {activeTab === "ai_tools" && currentSub === "scholarbot" && <ScholarBot scholarships={scholarships} saved={saved} user={userForAI} />}
 

@@ -200,7 +200,7 @@ export default function LandingPage({ onGetStarted }) {
           </div>
 
           <p className="l-hero-trust">
-            Free forever · No credit card · Trusted by <span>10,000+</span> students
+            Free forever · No credit card · Trusted by <span>55+</span> students
           </p>
 
           <div className="l-trust-badges">

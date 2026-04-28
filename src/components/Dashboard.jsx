@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { calcMatchScore, daysUntil, deadlineLabel, deadlineClass, matchColor } from "../utils/helpers.js";
+import { calcMatchScore, daysUntil, deadlineLabel, deadlineClass, matchColor, toArr, toStr } from "../utils/helpers.js";
 
 // ── Skeleton Loader ──────────────────────────────────────────
 function DashboardSkeleton() {
@@ -54,7 +54,10 @@ function PipelineChart({ tracker }) {
 
 // ── Match Distribution Donut ─────────────────────────────────
 function MatchDonut({ scholarships, user }) {
-  const scored = scholarships.map(s => calcMatchScore(s, user));
+  // FIX: wrap calcMatchScore in try-catch to prevent crash on bad data
+  const scored = scholarships.map(s => {
+    try { return calcMatchScore(s, user); } catch { return 0; }
+  });
   const high = scored.filter(s => s >= 80).length;
   const mid = scored.filter(s => s >= 60 && s < 80).length;
   const low = scored.filter(s => s < 60).length;
@@ -120,19 +123,74 @@ function DeadlineTimeline({ scholarships, saved }) {
   );
 }
 
+// ── Analytics Mini Summary ───────────────────────────────────
+function AnalyticsSummary({ scholarships, saved, tracker, user }) {
+  // FIX: wrap calcMatchScore in try-catch to prevent crash on bad data
+  const scored = scholarships.map(s => {
+    let score = 0;
+    try { score = calcMatchScore(s, user); } catch { score = 0; }
+    return { ...s, score };
+  });
+
+  const avgMatch = scored.length ? Math.round(scored.reduce((a, s) => a + s.score, 0) / scored.length) : 0;
+  const topField = scored.reduce((acc, s) => {
+    // FIX: toArr may receive non-string; safely get first field
+    const fieldArr = toArr(s.field);
+    const f = (fieldArr.length > 0 ? fieldArr[0] : null) || "other";
+    acc[f] = (acc[f] || 0) + 1;
+    return acc;
+  }, {});
+  const bestField = Object.entries(topField).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+  const appliedCount = tracker.filter(t => ["Applied","Under Review","Result Pending","Won"].includes(t.stage)).length;
+  const successRate = tracker.length > 0
+    ? Math.round((tracker.filter(t => t.stage === "Won").length / Math.max(appliedCount, 1)) * 100)
+    : 0;
+
+  return (
+    <div className="dash-card" style={{ marginBottom: 28 }}>
+      <h2 className="dash-section-title">
+        <div className="icon-badge" style={{ background: "#f5f3ff", color: "#7c3aed" }}>📈</div>
+        Your Analytics
+      </h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--primary)" }}>{avgMatch}%</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Avg Match Score</div>
+        </div>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--accent)" }}>{successRate}%</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Success Rate</div>
+        </div>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--success)" }}>{appliedCount}</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Applied</div>
+        </div>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", textTransform: "capitalize" }}>{bestField}</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Top Field</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────
-export default function Dashboard({ scholarships, saved, tracker, user, onViewScholar, navigate, isLoading }) {
+export default function Dashboard({ scholarships, saved, tracker, user, onViewScholar, navigate, isLoading, onExportCSV }) {
   if (isLoading) return <DashboardSkeleton />;
 
   const interactionHistory = getInteractionHistory();
+
   const recommended = scholarships
     .map(s => {
-      let score = calcMatchScore(s, user);
+      // FIX: wrap calcMatchScore in try-catch to prevent crash on bad data
+      let score = 0;
+      try { score = calcMatchScore(s, user); } catch { score = 0; }
+
       if (user.profile_complete >= 80) score = Math.min(score + 5, 100);
       if (saved.size > 0) {
         const savedSchols = scholarships.filter(x => saved.has(x.id));
-        const sameField = savedSchols.some(x => x.field === s.field);
-        const sameCategory = savedSchols.some(x => x.categories?.some?.(c => s.categories?.includes?.(c)));
+        const sameField = savedSchols.some(x => toStr(x.field) === toStr(s.field));
+        const sameCategory = savedSchols.some(x => toArr(x.categories).some(c => toArr(s.categories).includes(c)));
         if (sameField) score = Math.min(score + 5, 100);
         if (sameCategory) score = Math.min(score + 3, 100);
       }
@@ -168,7 +226,19 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
       {/* Hero */}
       <div className="dash-hero">
         <div className="dash-hero-content">
-          <div className="dash-hero-greeting">👋 Welcome back, {user.name?.split(" ")[0] || "Scholar"}</div>
+          <div className="dash-hero-greeting">
+            {/* FIX: safely split user.name — guard against non-string */}
+            👋 Welcome back, {typeof user.name === "string" ? user.name.split(" ")[0] : user.name || "Scholar"}
+            {user.streak > 1 && (
+              <span style={{
+                marginLeft: 12, padding: "3px 10px", borderRadius: 8,
+                background: "rgba(249,115,22,0.2)", border: "1px solid rgba(249,115,22,0.3)",
+                fontSize: 12, fontWeight: 700,
+              }}>
+                🔥 {user.streak}-day streak!
+              </span>
+            )}
+          </div>
           <h1 className="dash-hero-title">Your Future Starts Here.</h1>
           <p className="dash-hero-desc">
             Manage your applications, generate SOPs with AI, and track upcoming deadlines all in one place.
@@ -176,6 +246,11 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
           <div className="dash-hero-chips">
             <div className="dash-hero-chip">🔖 <strong>{saved.size}</strong> Saved</div>
             <div className="dash-hero-chip">🔥 <strong>{urgent.length}</strong> Urgent</div>
+            {onExportCSV && tracker.length > 0 && (
+              <button className="dash-hero-chip" style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.3)" }} onClick={onExportCSV}>
+                📥 Export CSV
+              </button>
+            )}
           </div>
           {user.profile_complete < 100 && (
             <div className="dash-hero-progress">
@@ -198,6 +273,9 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
           </div>
         ))}
       </div>
+
+      {/* Analytics Summary */}
+      <AnalyticsSummary scholarships={scholarships} saved={saved} tracker={tracker} user={user} />
 
       {/* Charts Row */}
       <div className="grid-3 mb-6 gap-4">
@@ -275,7 +353,10 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
                     <div className="font-bold text-sm" style={{ color: "var(--navy)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
                     <div className="text-xs text-muted">{s.provider}</div>
                   </div>
-                  <div style={{ fontWeight: 800, color: "#059669", fontSize: 13, flexShrink: 0 }}>{s.amount?.split("–")?.[0]}</div>
+                  {/* FIX: safely convert amount to string before split */}
+                  <div style={{ fontWeight: 800, color: "#059669", fontSize: 13, flexShrink: 0 }}>
+                    {String(s.amount ?? "").split("–")[0]}
+                  </div>
                 </div>
               </div>
             );

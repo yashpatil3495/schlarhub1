@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function ApplicationTracker({ tracker, onUpdateStage, onRemove, onViewScholar, scholarships }) {
+export default function ApplicationTracker({ tracker, onUpdateStage, onRemove, onViewScholar, scholarships, onExportCSV }) {
   const STAGES = ["Drafting", "Applied", "Under Review", "Result Pending", "Won", "Rejected"];
   
   const getStageColor = (stage) => {
@@ -34,6 +34,11 @@ export default function ApplicationTracker({ tracker, onUpdateStage, onRemove, o
           <p style={{ color: "var(--gray-500)", fontSize: 14 }}>Track your progress and stay on top of your scholarship applications.</p>
         </div>
         <div className="flex gap-4">
+          {onExportCSV && tracker.length > 0 && (
+            <button className="btn btn-ghost btn-sm" onClick={onExportCSV} style={{ fontWeight: 700 }}>
+              📥 Export CSV
+            </button>
+          )}
           <div className="dash-card" style={{ padding: "12px 20px", display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ color: "var(--primary)", fontWeight: 800, fontSize: 20 }}>{tracker.length}</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gray-500)", textTransform: "uppercase" }}>Total</div>

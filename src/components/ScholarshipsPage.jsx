@@ -1,8 +1,19 @@
-import { useState, useMemo } from "react";
-import { calcMatchScore, deadlineClass, deadlineLabel, matchColor, typeBadge, difficultyBadge, daysUntil } from "../utils/helpers.js";
+import { useState, useMemo, useEffect } from "react";
+import { calcMatchScore, deadlineClass, deadlineLabel, matchColor, typeBadge, difficultyBadge, daysUntil, toArr } from "../utils/helpers.js";
+
+// Debounce hook for search performance
+function useDebouncedValue(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
 
 export default function ScholarshipsPage({ scholarships, saved, onToggleSave, onView, user }) {
-  const [query, setQuery]       = useState("");
+  const [rawQuery, setRawQuery]   = useState("");
+  const query = useDebouncedValue(rawQuery, 300);
   const [filterType, setFT]     = useState("all");
   const [filterField, setFF]    = useState("all");
   const [filterCat, setFC]      = useState("all");
@@ -27,9 +38,9 @@ export default function ScholarshipsPage({ scholarships, saved, onToggleSave, on
       );
     }
     if (filterType  !== "all") list = list.filter(s => s.type === filterType);
-    if (filterField !== "all") list = list.filter(s => s.field.includes(filterField));
-    if (filterCat   !== "all") list = list.filter(s => s.categories.includes(filterCat));
-    if (filterState !== "all") list = list.filter(s => s.states.includes("all") || s.states.includes(filterState));
+    if (filterField !== "all") list = list.filter(s => toArr(s.field).includes(filterField));
+    if (filterCat   !== "all") list = list.filter(s => toArr(s.categories).includes(filterCat));
+    if (filterState !== "all") list = list.filter(s => toArr(s.states).includes("all") || toArr(s.states).includes(filterState));
     if (filterDeadline !== "all") {
       const days = parseInt(filterDeadline);
       list = list.filter(s => daysUntil(s.deadline) <= days && daysUntil(s.deadline) >= 0);
@@ -90,7 +101,7 @@ export default function ScholarshipsPage({ scholarships, saved, onToggleSave, on
       <div className="filter-glass">
         <div className="search-box" style={{ flex: "1 1 300px" }}>
           <span className="search-icon">🔍</span>
-          <input className="input" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, provider, or eligibility…" style={{ borderRadius: 12 }} />
+          <input className="input" value={rawQuery} onChange={e => setRawQuery(e.target.value)} placeholder="Search name, provider, or eligibility…" style={{ borderRadius: 12 }} />
         </div>
         
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", flex: 1 }}>
@@ -213,11 +224,27 @@ function ScholarCard({ s, saved, onToggleSave, onView, govtStyle = false }) {
 
           <div className="flex items-center gap-3 flex-wrap">
             <div className="amount-pill">{s.amount}</div>
-            <div className="deadline-pill">
+            <div style={{
+              padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+              display: "inline-flex", alignItems: "center", gap: 4,
+              background: daysUntil(s.deadline) <= 7 ? "#fee2e2" : daysUntil(s.deadline) <= 30 ? "#fff7ed" : "#dcfce7",
+              color: daysUntil(s.deadline) <= 7 ? "#991b1b" : daysUntil(s.deadline) <= 30 ? "#854d0e" : "#14532d",
+              border: `1px solid ${daysUntil(s.deadline) <= 7 ? "#fca5a5" : daysUntil(s.deadline) <= 30 ? "#fdba74" : "#86efac"}`,
+            }}>
               <span>📅</span> {deadlineLabel(s.deadline)}
+              {daysUntil(s.deadline) <= 3 && daysUntil(s.deadline) >= 0 && <span style={{ animation: "pulse 1.5s infinite" }}>🔥</span>}
+            </div>
+            {/* Match score badge */}
+            <div style={{
+              padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 800,
+              background: s.score >= 80 ? "#dcfce7" : s.score >= 60 ? "#fef3c7" : "#f1f5f9",
+              color: s.score >= 80 ? "#14532d" : s.score >= 60 ? "#92400e" : "#64748b",
+              border: `1px solid ${s.score >= 80 ? "#86efac" : s.score >= 60 ? "#fde68a" : "#e2e8f0"}`,
+            }}>
+              {s.score >= 80 ? "🎯 Great Match" : s.score >= 60 ? "👍 Good Match" : "📊 Partial Match"}
             </div>
             <div className="flex gap-1">
-              {s.categories.slice(0, 2).map(c => (
+              {toArr(s.categories).slice(0, 2).map(c => (
                 <span key={c} style={{ fontSize: 10, padding: "2px 8px", borderRadius: 6, background: "var(--gray-100)", color: "var(--gray-600)", fontWeight: 700, textTransform: "uppercase" }}>{c}</span>
               ))}
             </div>

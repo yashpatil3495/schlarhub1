@@ -233,6 +233,39 @@ No markdown, no backticks, no extra text.`;
                 <p className="text-sm text-muted mt-1">Your application looks strong. Go ahead and submit.</p>
               </div>
             )}
+
+            {/* Improvement Checklist */}
+            {issues.length > 0 && (
+              <div className="card mt-4" style={{ background: "var(--gray-50)", border: "1px solid var(--gray-200)" }}>
+                <h4 style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 18 }}>📋</span> Improvement Checklist
+                </h4>
+                <p className="text-sm text-muted mb-4">Fix these items before resubmitting your application:</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {issues.map((issue, i) => {
+                    const cfg = severityConfig[issue.severity] || severityConfig.suggestion;
+                    return (
+                      <label key={i} style={{
+                        display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px",
+                        background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--gray-200)",
+                        cursor: "pointer", transition: "all 0.2s",
+                      }}>
+                        <input type="checkbox" style={{ marginTop: 3, accentColor: "var(--success)", width: 16, height: 16 }} />
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)" }}>{issue.fix}</span>
+                          <div style={{ fontSize: 11, color: "var(--gray-500)", marginTop: 2 }}>
+                            {cfg.icon} {cfg.label} — {issue.issue}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: 16, padding: "10px 14px", background: "var(--primary-pale)", borderRadius: 10, fontSize: 12, color: "var(--primary)", fontWeight: 600 }}>
+                  💡 Tip: Fix all critical issues first, then warnings, then suggestions for the best results.
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

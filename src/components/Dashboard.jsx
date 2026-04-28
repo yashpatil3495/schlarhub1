@@ -125,7 +125,7 @@ function AnalyticsSummary({ scholarships, saved, tracker, user }) {
   const scored = scholarships.map(s => ({ ...s, score: calcMatchScore(s, user) }));
   const avgMatch = scored.length ? Math.round(scored.reduce((a, s) => a + s.score, 0) / scored.length) : 0;
   const topField = scored.reduce((acc, s) => {
-    const f = s.field?.split(",")[0]?.trim() || "other";
+    const f = Array.isArray(s.field) ? (s.field[0] || "other") : (String(s.field || "other").split(",")[0]?.trim() || "other");
     acc[f] = (acc[f] || 0) + 1;
     return acc;
   }, {});

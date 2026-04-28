@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { calcMatchScore, daysUntil, deadlineLabel, deadlineClass, matchColor } from "../utils/helpers.js";
+import { calcMatchScore, daysUntil, deadlineLabel, deadlineClass, matchColor, toArr, toStr } from "../utils/helpers.js";
 
 // ── Skeleton Loader ──────────────────────────────────────────
 function DashboardSkeleton() {
@@ -54,7 +54,10 @@ function PipelineChart({ tracker }) {
 
 // ── Match Distribution Donut ─────────────────────────────────
 function MatchDonut({ scholarships, user }) {
-  const scored = scholarships.map(s => calcMatchScore(s, user));
+  // FIX: wrap calcMatchScore in try-catch to prevent crash on bad data
+  const scored = scholarships.map(s => {
+    try { return calcMatchScore(s, user); } catch { return 0; }
+  });
   const high = scored.filter(s => s >= 80).length;
   const mid = scored.filter(s => s >= 60 && s < 80).length;
   const low = scored.filter(s => s < 60).length;
@@ -122,10 +125,18 @@ function DeadlineTimeline({ scholarships, saved }) {
 
 // ── Analytics Mini Summary ───────────────────────────────────
 function AnalyticsSummary({ scholarships, saved, tracker, user }) {
-  const scored = scholarships.map(s => ({ ...s, score: calcMatchScore(s, user) }));
+  // FIX: wrap calcMatchScore in try-catch to prevent crash on bad data
+  const scored = scholarships.map(s => {
+    let score = 0;
+    try { score = calcMatchScore(s, user); } catch { score = 0; }
+    return { ...s, score };
+  });
+
   const avgMatch = scored.length ? Math.round(scored.reduce((a, s) => a + s.score, 0) / scored.length) : 0;
   const topField = scored.reduce((acc, s) => {
-    const f = s.field?.split(",")[0]?.trim() || "other";
+    // FIX: toArr may receive non-string; safely get first field
+    const fieldArr = toArr(s.field);
+    const f = (fieldArr.length > 0 ? fieldArr[0] : null) || "other";
     acc[f] = (acc[f] || 0) + 1;
     return acc;
   }, {});
@@ -168,14 +179,18 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
   if (isLoading) return <DashboardSkeleton />;
 
   const interactionHistory = getInteractionHistory();
+
   const recommended = scholarships
     .map(s => {
-      let score = calcMatchScore(s, user);
+      // FIX: wrap calcMatchScore in try-catch to prevent crash on bad data
+      let score = 0;
+      try { score = calcMatchScore(s, user); } catch { score = 0; }
+
       if (user.profile_complete >= 80) score = Math.min(score + 5, 100);
       if (saved.size > 0) {
         const savedSchols = scholarships.filter(x => saved.has(x.id));
-        const sameField = savedSchols.some(x => x.field === s.field);
-        const sameCategory = savedSchols.some(x => x.categories?.some?.(c => s.categories?.includes?.(c)));
+        const sameField = savedSchols.some(x => toStr(x.field) === toStr(s.field));
+        const sameCategory = savedSchols.some(x => toArr(x.categories).some(c => toArr(s.categories).includes(c)));
         if (sameField) score = Math.min(score + 5, 100);
         if (sameCategory) score = Math.min(score + 3, 100);
       }
@@ -212,7 +227,8 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
       <div className="dash-hero">
         <div className="dash-hero-content">
           <div className="dash-hero-greeting">
-            👋 Welcome back, {user.name?.split(" ")[0] || "Scholar"}
+            {/* FIX: safely split user.name — guard against non-string */}
+            👋 Welcome back, {typeof user.name === "string" ? user.name.split(" ")[0] : user.name || "Scholar"}
             {user.streak > 1 && (
               <span style={{
                 marginLeft: 12, padding: "3px 10px", borderRadius: 8,
@@ -337,7 +353,10 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
                     <div className="font-bold text-sm" style={{ color: "var(--navy)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
                     <div className="text-xs text-muted">{s.provider}</div>
                   </div>
-                  <div style={{ fontWeight: 800, color: "#059669", fontSize: 13, flexShrink: 0 }}>{s.amount?.split("–")?.[0]}</div>
+                  {/* FIX: safely convert amount to string before split */}
+                  <div style={{ fontWeight: 800, color: "#059669", fontSize: 13, flexShrink: 0 }}>
+                    {String(s.amount ?? "").split("–")[0]}
+                  </div>
                 </div>
               </div>
             );

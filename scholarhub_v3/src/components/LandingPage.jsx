@@ -353,7 +353,7 @@ export default function LandingPage({ onGetStarted }) {
           </div>
           
           <div className="l-footer-copyright">
-            <p>© 2025 ScholarHub · Built with AI for Indian Students</p>
+            <p>© 2026 ScholarHub · Built with AI for Indian Students</p>
             <div className="l-footer-legal">
               <a href="#" onClick={e => e.preventDefault()}>Privacy</a>
               <a href="#" onClick={e => e.preventDefault()}>Terms</a>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { deadlineLabel, deadlineClass, typeBadge, difficultyBadge, daysUntil, calcMatchScore } from "../utils/helpers.js";
+import { deadlineLabel, deadlineClass, typeBadge, difficultyBadge, daysUntil, calcMatchScore, toArr, toStr } from "../utils/helpers.js";
 
 export default function ScholarshipDetail({ schol, onClose, saved, onToggleSave, onGenerateSOP, onInterviewPrep, onTrack, user }) {
   const [tab, setTab] = useState("overview");
@@ -10,13 +10,18 @@ export default function ScholarshipDetail({ schol, onClose, saved, onToggleSave,
   const matchScore = calcMatchScore(schol, user);
   const days       = daysUntil(schol.deadline);
 
+  const sLevel  = toArr(schol.level);
+  const sField  = toArr(schol.field);
+  const sCats   = toArr(schol.categories);
+  const sStates = toArr(schol.states);
+
   const eligChecks = [
-    { label: "Academic Level", check: schol.level.includes(user.level),                   detail: schol.level.join(", ") },
-    { label: "Field of Study",  check: schol.field.includes(user.field) || schol.field.includes("all"), detail: schol.field.join(", ") },
-    { label: "Category",        check: schol.categories.includes(user.category.toLowerCase()) || schol.categories.includes("general"), detail: schol.categories.join(", ") },
+    { label: "Academic Level", check: sLevel.includes(toStr(user.level)),                                                         detail: sLevel.join(", ") },
+    { label: "Field of Study",  check: sField.includes(toStr(user.field)) || sField.includes("all"),                               detail: sField.join(", ") },
+    { label: "Category",        check: sCats.includes(toStr(user.category).toLowerCase()) || sCats.includes("general"),             detail: sCats.join(", ") },
     { label: "Min. Marks",      check: user.marks_percent >= (schol.min_marks_percent || 0), detail: `Required: ${schol.min_marks_percent || 0}% · Yours: ${user.marks_percent}%` },
     { label: "Family Income",   check: user.annual_income_lpa <= (schol.max_family_income_lpa || 999), detail: `Limit: ₹${schol.max_family_income_lpa || "No limit"} LPA` },
-    { label: "State/Region",    check: schol.states.includes("all") || schol.states.includes(user.state), detail: schol.states.includes("all") ? "All India" : schol.states.join(", ") },
+    { label: "State/Region",    check: sStates.includes("all") || sStates.includes(toStr(user.state)), detail: sStates.includes("all") ? "All India" : sStates.join(", ") },
   ];
   const passCount = eligChecks.filter(c => c.check).length;
 

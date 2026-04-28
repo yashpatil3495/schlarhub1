@@ -9,7 +9,7 @@ export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(() => {
     const saved = localStorage.getItem(THEME_KEY);
     if (saved === "dark" || saved === "light") return saved;
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    return "light";
   });
 
   useEffect(() => {
@@ -17,17 +17,7 @@ export function ThemeProvider({ children }) {
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
-  // Listen for system preference changes
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e) => {
-      if (!localStorage.getItem(THEME_KEY)) {
-        setThemeState(e.matches ? "dark" : "light");
-      }
-    };
-    mq.addEventListener?.("change", handler);
-    return () => mq.removeEventListener?.("change", handler);
-  }, []);
+  // System preference listener removed — app defaults to light theme
 
   const toggleTheme = useCallback(() => {
     setThemeState(prev => prev === "dark" ? "light" : "dark");

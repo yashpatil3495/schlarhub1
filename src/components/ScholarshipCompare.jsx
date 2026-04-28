@@ -1,7 +1,7 @@
 // src/components/ScholarshipCompare.jsx — AI-powered side-by-side comparison
 import { useState, useMemo } from "react";
 import { calcMatchScore, daysUntil, deadlineLabel, matchColor } from "../utils/helpers.js";
-import { askAI } from "../utils/claude.js";
+import { callClaudeSync as askAI } from "../utils/claude.js";
 
 export default function ScholarshipCompare({ scholarships, user, onView }) {
   const [selected, setSelected] = useState([]);

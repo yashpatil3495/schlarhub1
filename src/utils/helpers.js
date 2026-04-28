@@ -68,10 +68,10 @@ export const calcMatchScore = (schol, user) => {
   const uMarks    = Number(user?.marks_percent) || 0;
 
   // FIX: use toArr so these never crash even if Supabase returns a number/null
-  const sField  = toArr(schol.field);
-  const sCats   = toArr(schol.categories);
-  const sStates = toArr(schol.states);
-  const sLevel  = toArr(schol.level);
+  const sField  = toArr(schol?.field);
+  const sCats   = toArr(schol?.categories);
+  const sStates = toArr(schol?.states);
+  const sLevel  = toArr(schol?.level);
 
   if (uField    && (sField.some(f => f.toLowerCase().includes(uField))    || sField.includes("all")))      score += 30;
   if (uCategory && (sCats.some(c  => c.toLowerCase().includes(uCategory)) || sCats.includes("general")))  score += 20;

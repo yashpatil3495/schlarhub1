@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { daysUntil, deadlineLabel, deadlineClass } from "../utils/helpers.js";
+import { daysUntil, deadlineLabel, deadlineClass, toArr } from "../utils/helpers.js";
 
 const INDIA_STATES = [
   { id: "Maharashtra", name: "Maharashtra", path: "M 340 380 L 380 360 L 410 390 L 420 430 L 390 450 L 360 440 L 330 410 Z", cx: 375, cy: 410 },
@@ -38,14 +38,14 @@ export default function ScholarshipMap({ scholarships, saved, onViewScholar }) {
   const stateCounts = useMemo(() => {
     const map = {};
     INDIA_STATES.forEach(s => {
-      map[s.id] = scholarships.filter(sc => sc.states.includes("all") || sc.states.includes(s.id)).length;
+      map[s.id] = scholarships.filter(sc => toArr(sc.states).includes("all") || toArr(sc.states).includes(s.id)).length;
     });
     return map;
   }, [scholarships]);
 
   const stateScholarships = useMemo(() => {
     if (!selectedState) return [];
-    return scholarships.filter(s => s.states.includes("all") || s.states.includes(selectedState))
+    return scholarships.filter(s => toArr(s.states).includes("all") || toArr(s.states).includes(selectedState))
       .sort((a, b) => b.amount_value - a.amount_value);
   }, [selectedState, scholarships]);
 

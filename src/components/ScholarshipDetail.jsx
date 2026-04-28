@@ -24,32 +24,32 @@ export default function ScholarshipDetail({ schol, onClose, saved, onToggleSave,
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-premium" style={{ maxWidth: 780 }} onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="modal-header modal-header-premium">
+        <div className="modal-header modal-header-premium" style={{ flexWrap: "wrap", gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2" style={{ flexWrap: "wrap" }}>
               <span className={typeBadge(schol.type)} style={{ fontSize: 10, padding: "2px 8px" }}>{schol.type}</span>
               <span className={difficultyBadge(schol.difficulty)} style={{ fontSize: 10 }}>{schol.difficulty}</span>
               {schol.renewable && <span className="badge badge-green" style={{ fontSize: 10 }}>🔄 Renewable</span>}
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", fontFamily: "var(--font-display)", marginBottom: 4 }}>{schol.name}</h2>
+            <h2 style={{ fontSize: "clamp(16px, 4vw, 22px)", fontWeight: 800, color: "var(--navy)", fontFamily: "var(--font-display)", marginBottom: 4 }}>{schol.name}</h2>
             <p style={{ color: "var(--gray-500)", fontWeight: 600, fontSize: 14 }}>{schol.provider}</p>
           </div>
-          <div className="flex items-center gap-4">
-            <div style={{ textAlign: "right" }}>
-              <div className="amount-pill" style={{ fontSize: 18, padding: "8px 16px" }}>{schol.amount}</div>
-              <div className={deadlineClass(schol.deadline) + " mt-2"} style={{ fontSize: 12, justifyContent: "flex-end", fontWeight: 700 }}>
+          <div className="flex items-center gap-4" style={{ flexWrap: "wrap" }}>
+            <div>
+              <div className="amount-pill" style={{ fontSize: "clamp(14px, 3vw, 18px)", padding: "8px 16px" }}>{schol.amount}</div>
+              <div className={deadlineClass(schol.deadline) + " mt-2"} style={{ fontSize: 12, fontWeight: 700 }}>
                 📅 {deadlineLabel(schol.deadline)}
               </div>
             </div>
-            <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: 20, padding: 8, borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyCenter: "center" }}>✕</button>
+            <button className="btn btn-ghost" onClick={onClose} style={{ fontSize: 20, padding: 8, borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
           </div>
         </div>
 
         {/* Match Score Bar */}
-        <div style={{ padding: "16px 32px", background: "var(--gray-50)", borderBottom: "1px solid var(--gray-200)" }}>
-          <div className="flex items-center gap-4">
+        <div style={{ padding: "12px clamp(16px, 4vw, 32px)", background: "var(--gray-50)", borderBottom: "1px solid var(--gray-200)" }}>
+          <div className="flex items-center gap-4" style={{ flexWrap: "wrap" }}>
             <span style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)" }}>Match Analysis</span>
-            <div className="match-bar-premium" style={{ flex: 1 }}>
+            <div className="match-bar-premium" style={{ flex: 1, minWidth: 80 }}>
               <div className="match-bar-fill" style={{ width: `${matchScore}%`, background: matchScore >= 80 ? "var(--success)" : matchScore >= 60 ? "var(--warning)" : "var(--gray-500)" }} />
             </div>
             <span style={{ fontWeight: 800, color: matchScore >= 80 ? "var(--success)" : "var(--warning)", fontSize: 18 }}>{matchScore}%</span>
@@ -169,21 +169,18 @@ export default function ScholarshipDetail({ schol, onClose, saved, onToggleSave,
           )}
         </div>
 
-        {/* Footer Actions */}
         <div className="modal-footer modal-footer-premium">
-          <div className="flex gap-2 w-full justify-between flex-wrap">
-            <div className="flex gap-2">
-              <button className="btn btn-primary" style={{ padding: "10px 20px", fontWeight: 700 }} onClick={() => onGenerateSOP(schol)}>✨ Generate SOP</button>
-              <button className={`btn ${isSaved ? "btn-secondary" : "btn-ghost"}`} onClick={() => onToggleSave(schol.id)}>
+          <div style={{ display: "flex", gap: 8, width: "100%", justifyContent: "space-between", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button className="btn btn-primary" style={{ padding: "10px 16px", fontWeight: 700, fontSize: 13 }} onClick={() => onGenerateSOP(schol)}>✨ SOP</button>
+              <button className={`btn ${isSaved ? "btn-secondary" : "btn-ghost"}`} style={{ fontSize: 13 }} onClick={() => onToggleSave(schol.id)}>
                 {isSaved ? "✓ Saved" : "🔖 Save"}
               </button>
+              <button className="btn btn-ghost" style={{ fontWeight: 700, fontSize: 13 }} onClick={() => onTrack(schol)}>📋 Track</button>
             </div>
-            <div className="flex gap-2">
-              <button className="btn btn-ghost" style={{ fontWeight: 700 }} onClick={() => onTrack(schol)}>📋 Track</button>
-              <button className="btn btn-primary" style={{ background: "var(--navy)", borderColor: "var(--navy)" }} onClick={() => window.open(schol.application_link || "https://scholarships.gov.in", "_blank")}>
-                Apply Officially →
-              </button>
-            </div>
+            <button className="btn btn-primary" style={{ background: "var(--navy)", borderColor: "var(--navy)", fontSize: 13 }} onClick={() => window.open(schol.application_link || "https://scholarships.gov.in", "_blank")}>
+              Apply →
+            </button>
           </div>
         </div>
       </div>

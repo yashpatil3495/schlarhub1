@@ -120,8 +120,51 @@ function DeadlineTimeline({ scholarships, saved }) {
   );
 }
 
+// ── Analytics Mini Summary ───────────────────────────────────
+function AnalyticsSummary({ scholarships, saved, tracker, user }) {
+  const scored = scholarships.map(s => ({ ...s, score: calcMatchScore(s, user) }));
+  const avgMatch = scored.length ? Math.round(scored.reduce((a, s) => a + s.score, 0) / scored.length) : 0;
+  const topField = scored.reduce((acc, s) => {
+    const f = s.field?.split(",")[0]?.trim() || "other";
+    acc[f] = (acc[f] || 0) + 1;
+    return acc;
+  }, {});
+  const bestField = Object.entries(topField).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+  const appliedCount = tracker.filter(t => ["Applied","Under Review","Result Pending","Won"].includes(t.stage)).length;
+  const successRate = tracker.length > 0
+    ? Math.round((tracker.filter(t => t.stage === "Won").length / Math.max(appliedCount, 1)) * 100)
+    : 0;
+
+  return (
+    <div className="dash-card" style={{ marginBottom: 28 }}>
+      <h2 className="dash-section-title">
+        <div className="icon-badge" style={{ background: "#f5f3ff", color: "#7c3aed" }}>📈</div>
+        Your Analytics
+      </h2>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 16 }}>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--primary)" }}>{avgMatch}%</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Avg Match Score</div>
+        </div>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--accent)" }}>{successRate}%</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Success Rate</div>
+        </div>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: "var(--success)" }}>{appliedCount}</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Applied</div>
+        </div>
+        <div style={{ textAlign: "center", padding: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", textTransform: "capitalize" }}>{bestField}</div>
+          <div style={{ fontSize: 12, color: "var(--gray-500)", fontWeight: 600 }}>Top Field</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Dashboard ───────────────────────────────────────────
-export default function Dashboard({ scholarships, saved, tracker, user, onViewScholar, navigate, isLoading }) {
+export default function Dashboard({ scholarships, saved, tracker, user, onViewScholar, navigate, isLoading, onExportCSV }) {
   if (isLoading) return <DashboardSkeleton />;
 
   const interactionHistory = getInteractionHistory();
@@ -168,7 +211,18 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
       {/* Hero */}
       <div className="dash-hero">
         <div className="dash-hero-content">
-          <div className="dash-hero-greeting">👋 Welcome back, {user.name?.split(" ")[0] || "Scholar"}</div>
+          <div className="dash-hero-greeting">
+            👋 Welcome back, {user.name?.split(" ")[0] || "Scholar"}
+            {user.streak > 1 && (
+              <span style={{
+                marginLeft: 12, padding: "3px 10px", borderRadius: 8,
+                background: "rgba(249,115,22,0.2)", border: "1px solid rgba(249,115,22,0.3)",
+                fontSize: 12, fontWeight: 700,
+              }}>
+                🔥 {user.streak}-day streak!
+              </span>
+            )}
+          </div>
           <h1 className="dash-hero-title">Your Future Starts Here.</h1>
           <p className="dash-hero-desc">
             Manage your applications, generate SOPs with AI, and track upcoming deadlines all in one place.
@@ -176,6 +230,11 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
           <div className="dash-hero-chips">
             <div className="dash-hero-chip">🔖 <strong>{saved.size}</strong> Saved</div>
             <div className="dash-hero-chip">🔥 <strong>{urgent.length}</strong> Urgent</div>
+            {onExportCSV && tracker.length > 0 && (
+              <button className="dash-hero-chip" style={{ cursor: "pointer", border: "1px solid rgba(255,255,255,0.3)" }} onClick={onExportCSV}>
+                📥 Export CSV
+              </button>
+            )}
           </div>
           {user.profile_complete < 100 && (
             <div className="dash-hero-progress">
@@ -198,6 +257,9 @@ export default function Dashboard({ scholarships, saved, tracker, user, onViewSc
           </div>
         ))}
       </div>
+
+      {/* Analytics Summary */}
+      <AnalyticsSummary scholarships={scholarships} saved={saved} tracker={tracker} user={user} />
 
       {/* Charts Row */}
       <div className="grid-3 mb-6 gap-4">

@@ -1,12 +1,14 @@
 // src/utils/claude.js
 // AI helper — Google Gemini (primary) with Groq (free fallback).
 // All requests go through Vite's dev proxy so API keys stay server-side.
+// v4: Gemini 2.5 Flash primary, AI response caching, improved fallback chain.
 
 const GEMINI_URL  = '/api/gemini';
 const GROQ_URL    = '/api/groq';
 
-// Gemini model fallback chain
+// Gemini model fallback chain — 2.5 Flash is the latest and fastest
 const GEMINI_MODELS = [
+  'gemini-2.5-flash-preview-04-17',
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
 ];
@@ -16,6 +18,59 @@ const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
 const MAX_RETRIES   = 2;
 const INITIAL_DELAY = 1500;
+
+// ─── AI Response Cache ──────────────────────────────────────────────────────
+const CACHE_KEY = 'scholarhub_ai_cache';
+const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_MAX_ENTRIES = 50;
+
+function getCacheKey(prompt, system) {
+  // Simple hash for cache key
+  const str = `${system}|||${prompt}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + c;
+    hash |= 0;
+  }
+  return `ai_${Math.abs(hash).toString(36)}`;
+}
+
+function getCache() {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '{}'); } catch { return {}; }
+}
+
+function getCachedResponse(prompt, system) {
+  const cache = getCache();
+  const key = getCacheKey(prompt, system);
+  const entry = cache[key];
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_MAX_AGE) {
+    delete cache[key];
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+    return null;
+  }
+  return entry.response;
+}
+
+function setCachedResponse(prompt, system, response) {
+  const cache = getCache();
+  const key = getCacheKey(prompt, system);
+  cache[key] = { response, ts: Date.now() };
+  // Evict oldest if over limit
+  const keys = Object.keys(cache);
+  if (keys.length > CACHE_MAX_ENTRIES) {
+    const oldest = keys.sort((a, b) => cache[a].ts - cache[b].ts);
+    for (let i = 0; i < keys.length - CACHE_MAX_ENTRIES; i++) {
+      delete cache[oldest[i]];
+    }
+  }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch { /* storage full */ }
+}
+
+export function clearAICache() {
+  localStorage.removeItem(CACHE_KEY);
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -111,13 +166,23 @@ function groqUnavailable() {
 
 /**
  * Streaming call — yields tokens via onToken callback.
+ * Uses cache for repeated prompts (returns instantly from cache).
  */
 export async function callClaude(prompt, onToken, system = '', maxTokens = 800) {
+  // Check cache first
+  const cached = getCachedResponse(prompt, system);
+  if (cached) {
+    onToken(cached);
+    return cached;
+  }
+
   const geminiBody = buildGeminiBody({ messages: [{ role: 'user', content: prompt }], system, maxTokens });
   const geminiRes  = await fetchGemini(`:streamGenerateContent?alt=sse`, geminiBody);
 
   if (geminiRes) {
-    return streamGemini(geminiRes, onToken);
+    const result = await streamGemini(geminiRes, onToken);
+    setCachedResponse(prompt, system, result);
+    return result;
   }
 
   // Groq fallback — non-streaming (Groq streaming works but adds complexity)
@@ -128,19 +193,27 @@ export async function callClaude(prompt, onToken, system = '', maxTokens = 800) 
   const data = await groqRes.json();
   const text = data?.choices?.[0]?.message?.content || '';
   onToken(text);
+  setCachedResponse(prompt, system, text);
   return text;
 }
 
 /**
  * Non-streaming call — returns full response text.
+ * Uses cache for repeated prompts.
  */
 export async function callClaudeSync(prompt, system = '', maxTokens = 1000) {
+  // Check cache first
+  const cached = getCachedResponse(prompt, system);
+  if (cached) return cached;
+
   const geminiBody = buildGeminiBody({ messages: [{ role: 'user', content: prompt }], system, maxTokens });
   const geminiRes  = await fetchGemini(`:generateContent`, geminiBody);
 
   if (geminiRes) {
     const data = await geminiRes.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const result = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    setCachedResponse(prompt, system, result);
+    return result;
   }
 
   // Groq fallback
@@ -149,11 +222,13 @@ export async function callClaudeSync(prompt, system = '', maxTokens = 1000) {
   try { groqRes = await fetchGroq('chat/completions', groqBody); }
   catch (err) { throw groqUnavailable(); }
   const data = await groqRes.json();
-  return data?.choices?.[0]?.message?.content || '';
+  const result = data?.choices?.[0]?.message?.content || '';
+  setCachedResponse(prompt, system, result);
+  return result;
 }
 
 /**
- * Multi-turn streaming chat.
+ * Multi-turn streaming chat (no caching — conversations are dynamic).
  */
 export async function callClaudeChat(messages, system = '', onToken, maxTokens = 600) {
   const geminiBody = buildGeminiBody({ messages, system, maxTokens });

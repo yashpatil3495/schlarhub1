@@ -135,7 +135,7 @@ Keep it concise (under 200 words). Use bullet points.`;
               <div style={{ fontSize: 14, fontWeight: 700, color: "var(--navy)", marginBottom: 4, paddingRight: 30 }}>{s.name}</div>
               <div style={{ fontSize: 12, color: "var(--gray-500)", marginBottom: 8 }}>{s.provider}</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 11, fontWeight: 700, background: matchColor(s.score) + "18", color: matchColor(s.score), padding: "2px 8px", borderRadius: 6 }}>{s.score}% match</span>
+                <span style={{ fontSize: 11, fontWeight: 700, background: matchColor(s.score).color + "18", color: matchColor(s.score).color, padding: "2px 8px", borderRadius: 6 }}>{s.score}% match</span>
                 <span style={{ fontSize: 11, fontWeight: 600, color: "var(--gray-500)" }}>{s.amount}</span>
                 <span style={{ fontSize: 11, fontWeight: 600, color: daysUntil(s.deadline) <= 7 ? "#dc2626" : "var(--gray-500)" }}>{deadlineLabel(s.deadline)}</span>
               </div>
@@ -162,7 +162,7 @@ Keep it concise (under 200 words). Use bullet points.`;
                 {[
                   { label: "💰 Amount", key: s => s.amount },
                   { label: "🏛️ Provider", key: s => s.provider },
-                  { label: "📊 Match Score", key: s => <span style={{ color: matchColor(s.score), fontWeight: 700 }}>{s.score}%</span> },
+                  { label: "📊 Match Score", key: s => <span style={{ color: matchColor(s.score).color, fontWeight: 700 }}>{s.score}%</span> },
                   { label: "📅 Deadline", key: s => deadlineLabel(s.deadline) },
                   { label: "⏱️ Days Left", key: s => { const d = daysUntil(s.deadline); return <span style={{ color: d <= 7 ? "#dc2626" : d <= 30 ? "#f59e0b" : "#16a34a", fontWeight: 700 }}>{d > 0 ? d : "Expired"}</span>; } },
                   { label: "📈 Success Rate", key: s => `${s.success_rate_estimate || "N/A"}%` },

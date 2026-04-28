@@ -45,12 +45,24 @@ export const matchColor = (score) => {
 /** Calculate match score against user profile */
 export const calcMatchScore = (schol, user) => {
   let score = 0;
-  if (schol.field.includes(user.field) || schol.field.includes("all"))           score += 30;
-  if (schol.categories.includes(user.category.toLowerCase()) || schol.categories.includes("general")) score += 20;
-  if (user.annual_income_lpa <= (schol.max_family_income_lpa || 999))            score += 15;
-  if (user.marks_percent >= (schol.min_marks_percent || 0))                      score += 15;
-  if (schol.states.includes("all") || schol.states.includes(user.state))         score += 10;
-  if (schol.level.includes(user.level))                                           score += 10;
+  const uField = (user?.field || "").toLowerCase();
+  const uCategory = (user?.category || "").toLowerCase();
+  const uState = user?.state || "";
+  const uLevel = (user?.level || "").toLowerCase();
+  const uIncome = Number(user?.annual_income_lpa) || 0;
+  const uMarks = Number(user?.marks_percent) || 0;
+
+  const sField = Array.isArray(schol.field) ? schol.field : String(schol.field || "").split(",").map(s => s.trim());
+  const sCats = Array.isArray(schol.categories) ? schol.categories : String(schol.categories || "").split(",").map(s => s.trim());
+  const sStates = Array.isArray(schol.states) ? schol.states : String(schol.states || "").split(",").map(s => s.trim());
+  const sLevel = Array.isArray(schol.level) ? schol.level : String(schol.level || "").split(",").map(s => s.trim());
+
+  if (uField && (sField.some(f => f.includes(uField)) || sField.includes("all")))         score += 30;
+  if (uCategory && (sCats.some(c => c.includes(uCategory)) || sCats.includes("general"))) score += 20;
+  if (uIncome <= (schol.max_family_income_lpa || 999))                                      score += 15;
+  if (uMarks >= (schol.min_marks_percent || 0))                                             score += 15;
+  if (sStates.includes("all") || sStates.includes(uState))                                  score += 10;
+  if (uLevel && sLevel.some(l => l.includes(uLevel)))                                       score += 10;
   if (schol.success_rate_estimate > 50)  score += 5;
   if (daysUntil(schol.deadline) > 30)    score += 3;
   return Math.min(score, 100);

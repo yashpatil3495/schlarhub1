@@ -269,16 +269,27 @@ export function AuthProvider({ children }) {
         updated_at: new Date().toISOString(),
         ...updates,
       };
-      const { data, error } = await supabase
-        .from("profiles")
-        .upsert(payload, { onConflict: "id" })
-        .select()
-        .single();
-      if (error) throw error;
-      setProfile({ ...data, profile_complete: calcProfileComplete(data) });
-      return data;
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .upsert(payload, { onConflict: "id" })
+          .select()
+          .single();
+        if (error) throw error;
+        setProfile({ ...data, profile_complete: calcProfileComplete(data) });
+        return data;
+      } catch (err) {
+        // Supabase unavailable — save profile locally so user can proceed
+        console.warn("Could not save profile to Supabase, using local fallback:", err.message);
+        const localProfile = { ...(profile || {}), ...payload };
+        localProfile.profile_complete = calcProfileComplete(localProfile);
+        setProfile(localProfile);
+        // Persist to localStorage as backup
+        try { localStorage.setItem("scholarhub_local_profile", JSON.stringify(localProfile)); } catch {}
+        return localProfile;
+      }
     },
-    [user]
+    [user, profile]
   );
 
   const refreshProfile = useCallback(() => {

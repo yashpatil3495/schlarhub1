@@ -1,42 +1,44 @@
-// src/App.jsx — ScholarHub with Supabase Auth + real data hooks
-import { useState, useEffect } from "react";
+// src/App.jsx — ScholarHub v4 with all upgrades
+// Error Boundaries · Lazy Loading · Dark Mode · Onboarding · Page Transitions
+import { useState, useEffect, lazy, Suspense } from "react";
 import { SCHOLARSHIPS as LOCAL_SCHOLARSHIPS } from "./data/scholarships.js";
 import { I18nProvider, useTranslation } from "./lib/i18n.jsx";
 import { scheduleDeadlineNotifications, requestNotifPermission, getNotifPermission } from "./lib/notifications.js";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext.jsx";
 
 // Auth
 import { AuthProvider, useAuth } from "./contexts/AuthContext.jsx";
 import AuthPage from "./components/AuthPage.jsx";
 import LandingPage from "./components/LandingPage.jsx";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import OnboardingWizard from "./components/OnboardingWizard.jsx";
 
 // Supabase hooks
 import { useScholarships, useSaved, useTracker, useNotifications } from "./hooks/useSupabase.js";
 
-// Core pages
+// Core pages (always loaded)
 import Dashboard          from "./components/Dashboard.jsx";
 import ScholarshipsPage   from "./components/ScholarshipsPage.jsx";
 import ScholarshipDetail  from "./components/ScholarshipDetail.jsx";
-import ApplicationTracker from "./components/ApplicationTracker.jsx";
-import DeadlineCalendar   from "./components/DeadlineCalendar.jsx";
-import DocumentCenter     from "./components/DocumentCenter.jsx";
-import ProfilePage        from "./components/ProfilePage.jsx";
-import NotificationsPage  from "./components/NotificationsPage.jsx";
 
-// AI Tools
-import SOPGenerator       from "./components/SOPGenerator.jsx";
-import InterviewSimulator from "./components/InterviewSimulator.jsx";
-import RejectionAnalyser  from "./components/RejectionAnalyser.jsx";
-import DocumentOCR        from "./components/DocumentOCR.jsx";
-import ScholarBot         from "./components/ScholarBot.jsx";
-
-// Unique features
-import AidCalculator      from "./components/AidCalculator.jsx";
-import ScholarshipMap     from "./components/ScholarshipMap.jsx";
-import PeerReview         from "./components/PeerReview.jsx";
-import WhatsAppReminders  from "./components/WhatsAppReminders.jsx";
-import MicroChallenges    from "./components/MicroChallenges.jsx";
-import MentorNetwork      from "./components/MentorNetwork.jsx";
-import ScholarshipImporter from "./components/ScholarshipImporter.jsx";
+// Lazy-loaded pages (code splitting for performance)
+const ApplicationTracker = lazy(() => import("./components/ApplicationTracker.jsx"));
+const DeadlineCalendar   = lazy(() => import("./components/DeadlineCalendar.jsx"));
+const DocumentCenter     = lazy(() => import("./components/DocumentCenter.jsx"));
+const ProfilePage        = lazy(() => import("./components/ProfilePage.jsx"));
+const NotificationsPage  = lazy(() => import("./components/NotificationsPage.jsx"));
+const SOPGenerator       = lazy(() => import("./components/SOPGenerator.jsx"));
+const InterviewSimulator = lazy(() => import("./components/InterviewSimulator.jsx"));
+const RejectionAnalyser  = lazy(() => import("./components/RejectionAnalyser.jsx"));
+const DocumentOCR        = lazy(() => import("./components/DocumentOCR.jsx"));
+const ScholarBot         = lazy(() => import("./components/ScholarBot.jsx"));
+const AidCalculator      = lazy(() => import("./components/AidCalculator.jsx"));
+const ScholarshipMap     = lazy(() => import("./components/ScholarshipMap.jsx"));
+const PeerReview         = lazy(() => import("./components/PeerReview.jsx"));
+const WhatsAppReminders  = lazy(() => import("./components/WhatsAppReminders.jsx"));
+const MicroChallenges    = lazy(() => import("./components/MicroChallenges.jsx"));
+const MentorNetwork      = lazy(() => import("./components/MentorNetwork.jsx"));
+const ScholarshipImporter = lazy(() => import("./components/ScholarshipImporter.jsx"));
 
 const NAV = [
   { id: "dashboard",    label: "Dashboard",        icon: "🏠" },
@@ -51,18 +53,95 @@ const AI_SUB   = ["sop","interview","analyser","ocr","scholarbot"];
 const COM_SUB  = ["peer_review","mentors","challenges"];
 const TOOL_SUB = ["calculator","map","calendar","documents","whatsapp","importer"];
 
+// ── Loading fallback for lazy components ─────────────────────
+function LazyFallback() {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "60px 20px" }}>
+      <div style={{ textAlign: "center" }}>
+        <div className="loading-dots" style={{ justifyContent: "center", marginBottom: 16 }}>
+          <span className="dot" /><span className="dot" /><span className="dot" />
+        </div>
+        <p style={{ color: "var(--gray-500)", fontSize: 14, fontWeight: 500 }}>Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+// ── Streak Tracker ───────────────────────────────────────────
+function useStreak() {
+  const STREAK_KEY = "scholarhub_streak";
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    try {
+      const data = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}');
+      const today = new Date().toDateString();
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+      if (data.lastVisit === today) {
+        setStreak(data.streak || 1);
+      } else if (data.lastVisit === yesterday) {
+        const newStreak = (data.streak || 0) + 1;
+        localStorage.setItem(STREAK_KEY, JSON.stringify({ lastVisit: today, streak: newStreak }));
+        setStreak(newStreak);
+      } else {
+        localStorage.setItem(STREAK_KEY, JSON.stringify({ lastVisit: today, streak: 1 }));
+        setStreak(1);
+      }
+    } catch {
+      setStreak(1);
+    }
+  }, []);
+
+  return streak;
+}
+
+// ── CSV Export Helper ────────────────────────────────────────
+function exportTrackerCSV(tracker, scholarships) {
+  const headers = ["Scholarship", "Provider", "Stage", "Amount", "Deadline", "Note"];
+  const rows = tracker.map(t => {
+    const s = scholarships.find(x => x.id === t.scholarshipId);
+    return [
+      s?.name || "Unknown",
+      s?.provider || "",
+      t.stage,
+      s?.amount || "",
+      s?.deadline || "",
+      (t.note || "").replace(/"/g, '""'),
+    ].map(v => `"${v}"`).join(",");
+  });
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `scholarhub_applications_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 
 // ── Inner app — only rendered when user is logged in ─────────
 function AppShell() {
   const { user, profile, signOut } = useAuth();
   const { lang, switchLang, t } = useTranslation();
+  const { isDark, toggleTheme } = useTheme();
+  const streak = useStreak();
 
   // Real data from Supabase (falls back to local data if DB not configured)
   const { scholarships, loading: scholLoading } = useScholarships(LOCAL_SCHOLARSHIPS);
   const { saved, toggleSave }               = useSaved();
   const { tracker, setTracker, addToTracker, updateTracker, removeFromTracker } = useTracker();
   const { unreadCount }                     = useNotifications();
+
+  // Onboarding wizard
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (profile && (profile.profile_complete || 0) < 30 && !localStorage.getItem("scholarhub_onboarding_skipped")) {
+      setShowOnboarding(true);
+    }
+  }, [profile]);
 
   // Schedule deadline notifications
   useEffect(() => {
@@ -101,6 +180,7 @@ function AppShell() {
     goals:             profile?.goals            || "",
     mobile:            profile?.mobile           || "",
     whatsapp_opted_in: profile?.whatsapp_opted_in|| false,
+    streak,
   };
 
   const openSOP = (schol) => {
@@ -161,6 +241,15 @@ function AppShell() {
       onBlur={e => e.target.style.top = "-40px"}>
         Skip to main content
       </a>
+
+      {/* Onboarding Wizard */}
+      {showOnboarding && (
+        <OnboardingWizard onComplete={() => {
+          setShowOnboarding(false);
+          localStorage.setItem("scholarhub_onboarding_skipped", "1");
+        }} />
+      )}
+
       {/* Topbar */}
       <header className="topbar" role="banner" aria-label="ScholarHub navigation">
         <div className="logo">
@@ -187,6 +276,23 @@ function AppShell() {
         </nav>
 
         <div className="topbar-right">
+          {/* Streak badge */}
+          {streak > 1 && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 4,
+              padding: "4px 10px", borderRadius: 8,
+              background: "rgba(249,115,22,0.15)", border: "1px solid rgba(249,115,22,0.25)",
+              fontSize: 12, fontWeight: 700, color: "#fb923c",
+            }}>
+              🔥 {streak}
+            </div>
+          )}
+
+          {/* Dark mode toggle */}
+          <button className="theme-toggle" onClick={toggleTheme} aria-label="Toggle dark mode">
+            {isDark ? "☀️" : "🌙"}
+          </button>
+
           {/* Language toggle */}
           <div className="lang-toggle">
             <button className={`lang-btn ${lang === "en" ? "active" : ""}`} onClick={() => switchLang("en")}>EN</button>
@@ -225,40 +331,44 @@ function AppShell() {
         </div>
       )}
 
-      {/* Pages */}
-      <main className="page" role="main" id="main-content" aria-label="Main content">
-        {activeTab === "dashboard" && (
-          <Dashboard scholarships={scholarships} saved={saved} tracker={tracker} user={userForAI} onViewScholar={s => setViewSchol(s)} navigate={navigate} isLoading={scholLoading} />
-        )}
-        {activeTab === "scholarships" && (
-          <ScholarshipsPage scholarships={scholarships} saved={saved} user={userForAI} onToggleSave={toggleSave} onView={s => setViewSchol(s)} />
-        )}
-        {activeTab === "tracker" && (
-          <ApplicationTracker tracker={tracker} setTracker={setTracker} scholarships={scholarships}
-            onUpdateStage={updateTracker} onRemove={removeFromTracker} />
-        )}
-        {activeTab === "profile"        && <ProfilePage />}
-        {activeTab === "notifications"  && <NotificationsPage />}
+      {/* Pages — wrapped in Error Boundaries + Suspense */}
+      <main className="page page-transition" role="main" id="main-content" aria-label="Main content" key={activeTab + currentSub}>
+        <ErrorBoundary fallbackMessage="This page encountered an error. Try refreshing or switching to another tab.">
+          <Suspense fallback={<LazyFallback />}>
+            {activeTab === "dashboard" && (
+              <Dashboard scholarships={scholarships} saved={saved} tracker={tracker} user={userForAI} onViewScholar={s => setViewSchol(s)} navigate={navigate} isLoading={scholLoading} onExportCSV={() => exportTrackerCSV(tracker, scholarships)} />
+            )}
+            {activeTab === "scholarships" && (
+              <ScholarshipsPage scholarships={scholarships} saved={saved} user={userForAI} onToggleSave={toggleSave} onView={s => setViewSchol(s)} />
+            )}
+            {activeTab === "tracker" && (
+              <ApplicationTracker tracker={tracker} setTracker={setTracker} scholarships={scholarships}
+                onUpdateStage={updateTracker} onRemove={removeFromTracker} onExportCSV={() => exportTrackerCSV(tracker, scholarships)} />
+            )}
+            {activeTab === "profile"        && <ProfilePage />}
+            {activeTab === "notifications"  && <NotificationsPage />}
 
-        {/* AI Tools */}
-        {activeTab === "ai_tools" && currentSub === "sop"        && <SOPGenerator       scholarships={scholarships} initialSchol={sopSchol} />}
-        {activeTab === "ai_tools" && currentSub === "interview"  && <InterviewSimulator  scholarships={scholarships} initialSchol={intSchol} />}
-        {activeTab === "ai_tools" && currentSub === "analyser"   && <RejectionAnalyser   scholarships={scholarships} />}
-        {activeTab === "ai_tools" && currentSub === "ocr"        && <DocumentOCR onProfileUpdate={() => {}} />}
-        {activeTab === "ai_tools" && currentSub === "scholarbot" && <ScholarBot scholarships={scholarships} saved={saved} user={userForAI} />}
+            {/* AI Tools */}
+            {activeTab === "ai_tools" && currentSub === "sop"        && <SOPGenerator       scholarships={scholarships} user={userForAI} saved={saved} initialSchol={sopSchol} />}
+            {activeTab === "ai_tools" && currentSub === "interview"  && <InterviewSimulator  scholarships={scholarships} user={userForAI} initialSchol={intSchol} />}
+            {activeTab === "ai_tools" && currentSub === "analyser"   && <RejectionAnalyser   scholarships={scholarships} user={userForAI} />}
+            {activeTab === "ai_tools" && currentSub === "ocr"        && <DocumentOCR onProfileUpdate={() => {}} />}
+            {activeTab === "ai_tools" && currentSub === "scholarbot" && <ScholarBot scholarships={scholarships} saved={saved} user={userForAI} />}
 
-        {/* Community */}
-        {activeTab === "community" && currentSub === "peer_review" && <PeerReview    scholarships={scholarships} />}
-        {activeTab === "community" && currentSub === "mentors"     && <MentorNetwork scholarships={scholarships} />}
-        {activeTab === "community" && currentSub === "challenges"  && <MicroChallenges />}
+            {/* Community */}
+            {activeTab === "community" && currentSub === "peer_review" && <PeerReview    scholarships={scholarships} />}
+            {activeTab === "community" && currentSub === "mentors"     && <MentorNetwork scholarships={scholarships} />}
+            {activeTab === "community" && currentSub === "challenges"  && <MicroChallenges />}
 
-        {/* Tools */}
-        {activeTab === "tools" && currentSub === "calculator" && <AidCalculator    scholarships={scholarships} calcSelected={calcSelected} setCalcSelected={setCalcSelected} />}
-        {activeTab === "tools" && currentSub === "map"        && <ScholarshipMap   scholarships={scholarships} saved={saved} onViewScholar={s => setViewSchol(s)} />}
-        {activeTab === "tools" && currentSub === "calendar"   && <DeadlineCalendar scholarships={scholarships} saved={saved} />}
-        {activeTab === "tools" && currentSub === "documents"  && <DocumentCenter   user={userForAI} />}
-        {activeTab === "tools" && currentSub === "whatsapp"   && <WhatsAppReminders scholarships={scholarships} saved={saved} user={userForAI} />}
-        {activeTab === "tools" && currentSub === "importer"   && <ScholarshipImporter />}
+            {/* Tools */}
+            {activeTab === "tools" && currentSub === "calculator" && <AidCalculator    scholarships={scholarships} calcSelected={calcSelected} setCalcSelected={setCalcSelected} />}
+            {activeTab === "tools" && currentSub === "map"        && <ScholarshipMap   scholarships={scholarships} saved={saved} onViewScholar={s => setViewSchol(s)} />}
+            {activeTab === "tools" && currentSub === "calendar"   && <DeadlineCalendar scholarships={scholarships} saved={saved} />}
+            {activeTab === "tools" && currentSub === "documents"  && <DocumentCenter   user={userForAI} />}
+            {activeTab === "tools" && currentSub === "whatsapp"   && <WhatsAppReminders scholarships={scholarships} saved={saved} user={userForAI} />}
+            {activeTab === "tools" && currentSub === "importer"   && <ScholarshipImporter />}
+          </Suspense>
+        </ErrorBoundary>
       </main>
 
       {/* Scholarship detail modal */}
@@ -325,11 +435,14 @@ function AuthGate() {
 
 export default function App() {
   return (
-    <I18nProvider>
-      <AuthProvider>
-        <AuthGate />
-      </AuthProvider>
-    </I18nProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <ErrorBoundary fallbackMessage="ScholarHub encountered a critical error. Please refresh the page.">
+            <AuthGate />
+          </ErrorBoundary>
+        </AuthProvider>
+      </I18nProvider>
+    </ThemeProvider>
   );
 }
-

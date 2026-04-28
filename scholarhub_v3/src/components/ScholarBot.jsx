@@ -18,6 +18,11 @@ const WELCOME = (count) => ({
   role: "bot",
   text: `Namaste! 👋 I'm ScholarBot — your personal scholarship guide.\n\nI know your profile and all **${count} scholarships** in our database. I can help you find matches, check eligibility, and guide you through the application process.\n\nWhat would you like to know today?`,
   ts: Date.now(),
+  suggestions: [
+    "Show my best matches",
+    "What deadlines are coming up?",
+    "Help me prepare for interviews",
+  ],
 });
 
 function loadHistory() {
@@ -34,7 +39,7 @@ function saveHistory(messages) {
     const clean = messages
       .filter(m => !m.streaming && m.text)
       .slice(-MAX_STORED_MESSAGES)
-      .map(({ role, text, ts }) => ({ role, text, ts: ts || Date.now() }));
+      .map(({ role, text, ts, suggestions }) => ({ role, text, ts: ts || Date.now(), suggestions }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
   } catch {}
 }
@@ -57,6 +62,26 @@ function formatTs(ts) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+// Extract follow-up suggestions from AI response
+function extractSuggestions(text) {
+  const suggestions = [];
+  // Look for common patterns in AI responses that suggest follow-up
+  if (text.includes("deadline") || text.includes("apply")) suggestions.push("What documents do I need?");
+  if (text.includes("scholarship") && text.includes("match")) suggestions.push("Compare my top 3 matches");
+  if (text.includes("SOP") || text.includes("statement")) suggestions.push("Help me draft an SOP");
+  if (text.includes("interview")) suggestions.push("Practice interview questions");
+  if (text.includes("eligibility") || text.includes("qualify")) suggestions.push("Show scholarships I qualify for");
+  if (text.includes("income") || text.includes("financial")) suggestions.push("Calculate my total aid potential");
+  
+  // Always add a generic follow-up
+  if (suggestions.length === 0) {
+    suggestions.push("Tell me more about this");
+    suggestions.push("What else should I know?");
+  }
+  
+  return suggestions.slice(0, 3);
+}
+
 export default function ScholarBot({ scholarships, saved, user }) {
   const stored = loadHistory();
   const [messages, setMessages] = useState(stored && stored.length > 0 ? stored : [WELCOME(scholarships.length)]);
@@ -74,6 +99,21 @@ export default function ScholarBot({ scholarships, saved, user }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Conversation summary for context (memory)
+  const getConversationSummary = () => {
+    const topics = new Set();
+    messages.forEach(m => {
+      if (m.role === "user" && m.text) {
+        if (m.text.toLowerCase().includes("sop")) topics.add("SOP writing");
+        if (m.text.toLowerCase().includes("deadline")) topics.add("deadlines");
+        if (m.text.toLowerCase().includes("interview")) topics.add("interview prep");
+        if (m.text.toLowerCase().includes("document")) topics.add("documents");
+        if (m.text.toLowerCase().includes("match")) topics.add("scholarship matching");
+      }
+    });
+    return topics.size > 0 ? `Previous topics discussed: ${[...topics].join(", ")}.` : "";
+  };
+
   const send = async (text) => {
     const msg = text || input;
     if (!msg.trim() || loading) return;
@@ -83,8 +123,21 @@ export default function ScholarBot({ scholarships, saved, user }) {
     setMessages(m => [...m, userMsg]);
     setLoading(true);
 
+    const savedScholNames = scholarships.filter(s => saved.has(s.id)).map(s => s.name).join(", ");
     const scholarData = scholarships.slice(0, 50).map(s => `• ${s.name}: ${s.amount}, ${s.eligibility_summary}`).join("\n");
-    const system = `You are ScholarBot for ScholarHub India. Help ${user.name} find scholarships. Be concise, warm, and accurate. Use data provided. Profile: ${user.level}, ${user.field}, ${user.marks_percent}%, ₹${user.annual_income_lpa}L income.`;
+    const memorySummary = getConversationSummary();
+    
+    const system = `You are ScholarBot for ScholarHub India. Help ${user.name} find scholarships. Be concise, warm, and accurate. Use data provided.
+Profile: ${user.level}, ${user.field}, ${user.marks_percent}%, ₹${user.annual_income_lpa}L income, ${user.category}, ${user.state}.
+Saved scholarships: ${savedScholNames || "None yet"}.
+${memorySummary}
+Available scholarships:\n${scholarData}
+
+Rules:
+- Be specific with names and amounts
+- Use ** for emphasis
+- Keep responses under 200 words unless asked for details
+- End with a natural follow-up question when relevant`;
 
     const recentMessages = messages.slice(-MAX_CONTEXT_MESSAGES);
     const history = recentMessages.filter(m => m.text).map(m => ({ role: m.role === "bot" ? "assistant" : "user", content: m.text })).concat([{ role: "user", content: msg }]);
@@ -93,17 +146,23 @@ export default function ScholarBot({ scholarships, saved, user }) {
     setMessages(m => [...m, botMsg]);
 
     try {
+      let fullText = "";
       await callClaudeChat(history, system, (full) => {
+        fullText = full;
         setMessages(m => m.map((msg, i) => i === m.length - 1 ? { ...msg, text: full } : msg));
       });
+      // Add follow-up suggestions
+      const suggestions = extractSuggestions(fullText);
+      setMessages(m => m.map((msg, i) => i === m.length - 1 ? { ...msg, streaming: false, suggestions } : msg));
     } catch (e) {
       const errText = "⚠️ Connection error. Please try again in a moment!";
-      setMessages(m => m.map((msg, i) => i === m.length - 1 ? { ...msg, text: errText } : msg));
+      setMessages(m => m.map((msg, i) => i === m.length - 1 ? { ...msg, text: errText, streaming: false } : msg));
     } finally {
-      setMessages(m => m.map((msg, i) => i === m.length - 1 ? { ...msg, streaming: false } : msg));
       setLoading(false);
     }
   };
+
+  const lastBotSuggestions = [...messages].reverse().find(m => m.role === "bot" && m.suggestions)?.suggestions || [];
 
   return (
     <div className="fade-in">
@@ -113,7 +172,9 @@ export default function ScholarBot({ scholarships, saved, user }) {
             <div className="icon-badge" style={{ background: "#ede9fe", color: "#7c3aed", width: 36, height: 36 }}>🤖</div>
             ScholarBot
           </h1>
-          <p style={{ color: "var(--gray-500)", fontSize: 14 }}>Your AI Advisor • Online & Ready to Help</p>
+          <p style={{ color: "var(--gray-500)", fontSize: 14 }}>
+            Your AI Advisor • {messages.length} messages • Online & Ready to Help
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="card" style={{ padding: "8px 16px", borderRadius: 12, display: "flex", alignItems: "center", gap: 10 }}>
@@ -141,23 +202,46 @@ export default function ScholarBot({ scholarships, saved, user }) {
       <div className="chat-container" style={{ height: 600 }}>
         <div className="chat-messages">
           {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`chat-bubble ${msg.role}`}>
-                {msg.role === "bot" && (
-                  <div style={{ fontWeight: 800, fontSize: 11, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>ScholarBot</div>
-                )}
-                {renderMarkdown(msg.text)}
-                {msg.streaming && <span className="streaming-cursor" />}
-                <div style={{ fontSize: 10, marginTop: 6, opacity: 0.6, textAlign: msg.role === "user" ? "right" : "left" }}>
-                  {formatTs(msg.ts)}
+            <div key={i}>
+              <div className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`chat-bubble ${msg.role}`}>
+                  {msg.role === "bot" && (
+                    <div style={{ fontWeight: 800, fontSize: 11, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 6 }}>ScholarBot</div>
+                  )}
+                  {renderMarkdown(msg.text)}
+                  {msg.streaming && <span className="streaming-cursor" />}
+                  <div style={{ fontSize: 10, marginTop: 6, opacity: 0.6, textAlign: msg.role === "user" ? "right" : "left" }}>
+                    {formatTs(msg.ts)}
+                  </div>
                 </div>
               </div>
+              {/* Follow-up suggestions after bot messages */}
+              {msg.role === "bot" && msg.suggestions && msg.suggestions.length > 0 && !msg.streaming && i === messages.length - 1 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, marginLeft: 8 }}>
+                  {msg.suggestions.map((s, j) => (
+                    <button
+                      key={j}
+                      onClick={() => send(s)}
+                      style={{
+                        padding: "6px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                        background: "var(--primary-pale)", color: "var(--primary)",
+                        border: "1px solid var(--primary-light)", cursor: "pointer",
+                        transition: "all 0.2s",
+                      }}
+                      onMouseOver={e => { e.target.style.background = "var(--primary)"; e.target.style.color = "#fff"; }}
+                      onMouseOut={e => { e.target.style.background = "var(--primary-pale)"; e.target.style.color = "var(--primary)"; }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
           <div ref={bottomRef} />
         </div>
 
-        <div className="p-4 bg-white border-t">
+        <div style={{ padding: 16, background: "var(--bg-card)", borderTop: "1px solid var(--gray-200)" }}>
           <div className="pill-tabs" style={{ marginBottom: 12, overflowX: "auto", flexWrap: "nowrap" }}>
             {QUICK_ACTIONS.map(q => (
               <button key={q} className="pill-tab" style={{ fontSize: 11, padding: "6px 14px", whiteSpace: "nowrap" }} onClick={() => send(q)}>{q}</button>

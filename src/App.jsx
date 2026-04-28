@@ -1,6 +1,7 @@
-// src/App.jsx — ScholarHub v4 with all upgrades
-// Error Boundaries · Lazy Loading · Dark Mode · Onboarding · Page Transitions
-import { useState, useEffect, lazy, Suspense } from "react";
+// src/App.jsx — ScholarHub v5
+// Toast Notifications · Back-to-Top · Debounced Search · CI/CD · Accessibility
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import toast, { Toaster } from "react-hot-toast";
 import { SCHOLARSHIPS as LOCAL_SCHOLARSHIPS } from "./data/scholarships.js";
 import { I18nProvider, useTranslation } from "./lib/i18n.jsx";
 import { scheduleDeadlineNotifications, requestNotifPermission, getNotifPermission } from "./lib/notifications.js";
@@ -39,6 +40,8 @@ const WhatsAppReminders  = lazy(() => import("./components/WhatsAppReminders.jsx
 const MicroChallenges    = lazy(() => import("./components/MicroChallenges.jsx"));
 const MentorNetwork      = lazy(() => import("./components/MentorNetwork.jsx"));
 const ScholarshipImporter = lazy(() => import("./components/ScholarshipImporter.jsx"));
+const ScholarshipCompare  = lazy(() => import("./components/ScholarshipCompare.jsx"));
+const ProgressAnalytics   = lazy(() => import("./components/ProgressAnalytics.jsx"));
 
 const NAV = [
   { id: "dashboard",    label: "Dashboard",        icon: "🏠" },
@@ -49,9 +52,9 @@ const NAV = [
   { id: "tools",        label: "Tools",            icon: "🛠️" },
 ];
 
-const AI_SUB   = ["sop","interview","analyser","ocr","scholarbot"];
+const AI_SUB   = ["sop","interview","analyser","ocr","scholarbot","compare"];
 const COM_SUB  = ["peer_review","mentors","challenges"];
-const TOOL_SUB = ["calculator","map","calendar","documents","whatsapp","importer"];
+const TOOL_SUB = ["calculator","map","calendar","documents","whatsapp","importer","analytics"];
 
 // ── Loading fallback for lazy components ─────────────────────
 function LazyFallback() {
@@ -193,7 +196,16 @@ function AppShell() {
     await addToTracker(schol.id);
     setViewSchol(null);
     setActiveTab("tracker");
+    toast.success(`"${schol.name}" added to tracker!`, { icon: '📋' });
   };
+
+  // Back-to-top
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowBackToTop(window.scrollY > 400);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const navigate = (tab, sub) => { setActiveTab(tab); if (sub) setSubTab(sub); };
 
@@ -204,6 +216,7 @@ function AppShell() {
       { id:"analyser",   label:"🔍 Rejection Analyser"  },
       { id:"ocr",        label:"📷 Document OCR"        },
       { id:"scholarbot", label:"🤖 ScholarBot"          },
+      { id:"compare",    label:"⚖️ Compare"             },
     ];
     if (activeTab === "community") return [
       { id:"peer_review", label:"👥 Peer Review"    },
@@ -217,6 +230,7 @@ function AppShell() {
       { id:"documents",  label:"📁 Document Center"  },
       { id:"whatsapp",   label:"📱 WhatsApp Reminders"},
       { id:"importer",   label:"📥 Add Scholarship"   },
+      { id:"analytics",  label:"📊 Analytics"          },
     ];
     return null;
   };
@@ -354,6 +368,7 @@ function AppShell() {
             {activeTab === "ai_tools" && currentSub === "analyser"   && <RejectionAnalyser   scholarships={scholarships} user={userForAI} />}
             {activeTab === "ai_tools" && currentSub === "ocr"        && <DocumentOCR onProfileUpdate={() => {}} />}
             {activeTab === "ai_tools" && currentSub === "scholarbot" && <ScholarBot scholarships={scholarships} saved={saved} user={userForAI} />}
+            {activeTab === "ai_tools" && currentSub === "compare"    && <ScholarshipCompare scholarships={scholarships} user={userForAI} onView={s => setViewSchol(s)} />}
 
             {/* Community */}
             {activeTab === "community" && currentSub === "peer_review" && <PeerReview    scholarships={scholarships} />}
@@ -367,6 +382,7 @@ function AppShell() {
             {activeTab === "tools" && currentSub === "documents"  && <DocumentCenter   user={userForAI} />}
             {activeTab === "tools" && currentSub === "whatsapp"   && <WhatsAppReminders scholarships={scholarships} saved={saved} user={userForAI} />}
             {activeTab === "tools" && currentSub === "importer"   && <ScholarshipImporter />}
+            {activeTab === "tools" && currentSub === "analytics"  && <ProgressAnalytics tracker={tracker} scholarships={scholarships} saved={saved} user={userForAI} />}
           </Suspense>
         </ErrorBoundary>
       </main>
@@ -381,13 +397,41 @@ function AppShell() {
         />
       )}
 
+      {/* Back to Top */}
+      {showBackToTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          aria-label="Back to top"
+          style={{
+            position: 'fixed', bottom: 90, right: 20, zIndex: 150,
+            width: 44, height: 44, borderRadius: '50%', border: 'none',
+            background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+            color: '#fff', fontSize: 18, cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(26,86,219,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.3s cubic-bezier(.4,0,.2,1)',
+            animation: 'fadeIn 0.3s ease',
+          }}
+          onMouseEnter={e => { e.target.style.transform = 'scale(1.1) translateY(-2px)'; }}
+          onMouseLeave={e => { e.target.style.transform = 'scale(1)'; }}
+        >↑</button>
+      )}
+
       <footer className="app-footer">
         <div className="app-footer-brand">
           <div className="app-footer-logo">🎓</div>
-          <span className="app-footer-name">ScholarHub</span>
+          <span className="app-footer-name">ScholarHub v5</span>
         </div>
         © 2026 ScholarHub · Built with React + Supabase + Gemini AI · Helping every Indian student find the scholarship they deserve
       </footer>
+
+      {/* Toast Notifications */}
+      <Toaster position="bottom-right" toastOptions={{
+        duration: 3000,
+        style: { borderRadius: '12px', background: 'var(--bg-card)', color: 'var(--navy)', boxShadow: '0 8px 30px rgba(0,0,0,0.12)', fontFamily: 'var(--font)', fontSize: '14px', fontWeight: 600 },
+        success: { iconTheme: { primary: '#16a34a', secondary: '#fff' } },
+        error: { iconTheme: { primary: '#dc2626', secondary: '#fff' } },
+      }} />
 
       {/* Mobile Bottom Navigation */}
       <nav className="mobile-nav" role="navigation" aria-label="Mobile navigation">
@@ -443,6 +487,7 @@ export default function App() {
           </ErrorBoundary>
         </AuthProvider>
       </I18nProvider>
+      <Toaster position="top-center" toastOptions={{ duration: 2500, style: { borderRadius: '12px', fontFamily: 'var(--font)', fontSize: 14, fontWeight: 600 } }} />
     </ThemeProvider>
   );
 }

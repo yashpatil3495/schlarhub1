@@ -1,18 +1,20 @@
 {
   "name": "scholarhub",
-  "version": "2.0.0",
-  "description": "India's most intelligent scholarship companion — with Supabase backend",
+  "version": "5.0.0",
+  "description": "India's most intelligent AI-powered scholarship companion — ScholarHub v5",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint src --ext .js,.jsx --fix"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
     "@supabase/supabase-js": "^2.45.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-hot-toast": "^2.6.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

@@ -1,8 +1,19 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { calcMatchScore, deadlineClass, deadlineLabel, matchColor, typeBadge, difficultyBadge, daysUntil } from "../utils/helpers.js";
 
+// Debounce hook for search performance
+function useDebouncedValue(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+
 export default function ScholarshipsPage({ scholarships, saved, onToggleSave, onView, user }) {
-  const [query, setQuery]       = useState("");
+  const [rawQuery, setRawQuery]   = useState("");
+  const query = useDebouncedValue(rawQuery, 300);
   const [filterType, setFT]     = useState("all");
   const [filterField, setFF]    = useState("all");
   const [filterCat, setFC]      = useState("all");
@@ -90,7 +101,7 @@ export default function ScholarshipsPage({ scholarships, saved, onToggleSave, on
       <div className="filter-glass">
         <div className="search-box" style={{ flex: "1 1 300px" }}>
           <span className="search-icon">🔍</span>
-          <input className="input" value={query} onChange={e => setQuery(e.target.value)} placeholder="Search name, provider, or eligibility…" style={{ borderRadius: 12 }} />
+          <input className="input" value={rawQuery} onChange={e => setRawQuery(e.target.value)} placeholder="Search name, provider, or eligibility…" style={{ borderRadius: 12 }} />
         </div>
         
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", flex: 1 }}>
